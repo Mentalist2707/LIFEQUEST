@@ -4,12 +4,13 @@ let revision=0;
 let queue:Promise<unknown>=Promise.resolve();
 let lastSaved:State|null=null;
 let lastEnqueued:State|null=null;
+let generation=0;
 
 type ApiError=Error&{status?:number};
 async function request(url:string,method:'GET'|'PUT'|'POST',body?:unknown){
  const res=await fetch(url,{method,cache:'no-store',credentials:'same-origin',headers:{'content-type':'application/json'},...(body!==undefined?{body:JSON.stringify(body)}:{})});
  const value=await res.json().catch(()=>({error:'Server javobi noto‘g‘ri'}));
- if(!res.ok){const err=new Error(value.error||`Server xatosi (${res.status})`) as ApiError;err.status=res.status;throw err;}
+ if(!res.ok){const err=new Error(value.error||`Server xatosi (${res.status})`) as ApiError;err.status=res.status;(err as ApiError & {payload?:any}).payload=value;throw err;}
  return value;
 }
 const clone=(s:State):State=>structuredClone(s);
@@ -45,9 +46,9 @@ export function mergeStates(base:State,local:State,remote:State):State{
  // Same-date concurrent actions: preserve exactly one outcome, with each historical XP adjustment traceable.
  return safeState(merged);
 }
-export async function authenticate(mode:'login'|'register',email:string,password:string,name:string){await request(`/api/auth/${mode}`,'POST',{email,password,name});revision=0;lastSaved=null;lastEnqueued=null;queue=Promise.resolve();}
+export async function authenticate(mode:'login'|'register',email:string,password:string,name:string){await request(`/api/auth/${mode}`,'POST',{email,password,name});revision=0;lastSaved=null;lastEnqueued=null;generation++;queue=Promise.resolve();}
 export async function getSession(){return request('/api/auth/me','GET') as Promise<{user:{id:string;name:string;email:string}}>}
-export async function logout(){await queue.catch(()=>{});await request('/api/auth/logout','POST');revision=0;lastSaved=null;lastEnqueued=null;queue=Promise.resolve();}
+export async function logout(){await queue.catch(()=>{});await request('/api/auth/logout','POST');revision=0;lastSaved=null;lastEnqueued=null;generation++;queue=Promise.resolve();}
 export async function loadCloud():Promise<State>{await queue.catch(()=>{});const result=await request('/api/state','GET');revision=result.revision;const state=safeState(result.state);lastSaved=clone(state);lastEnqueued=clone(state);return state;}
 /** Serialized, idempotent state persistence. Each request waits for the prior write.
  * The server remains the authority for revisions. A state that has already been
@@ -55,29 +56,34 @@ export async function loadCloud():Promise<State>{await queue.catch(()=>{});const
 export function saveCloud(state:State):Promise<State>{
  const snapshot=clone(safeState(state));
  const baseline=lastEnqueued?clone(lastEnqueued):lastSaved?clone(lastSaved):clone(snapshot);
+ const myGeneration=generation;
  lastEnqueued=clone(snapshot);
  const perform=async():Promise<State>=>{
-  // Other queued saves may have already persisted exactly this snapshot.
-  // Avoid creating fresh revisions from no-op React rerenders.
+  if(myGeneration!==generation)throw new Error('Sessiya almashgan, saqlash bekor qilindi.');
   let desired=lastSaved?mergeStates(baseline,snapshot,lastSaved):snapshot;
   if(lastSaved&&eq(desired,lastSaved))return clone(lastSaved);
-  for(let attempt=0;attempt<4;attempt++){
+  // One genuine conflict is merged and retried once. Do NOT hammer the API.
+  for(let attempt=0;attempt<2;attempt++){
    try{
     const result=await request('/api/state','PUT',{state:desired,revision});
     revision=Number(result.revision);
     lastSaved=clone(desired);
     return clone(desired);
    }catch(e){
-    if((e as ApiError).status!==409)throw e;
-    if(attempt===3)throw new Error('Ma’lumotni saqlashda versiya konflikti. Qayta saqlash tugmasini bosing.');
-    const current=await request('/api/state','GET');
+    const err=e as ApiError & {payload?:{revision?:number;state?:State}};
+    if(err.status!==409)throw e;
+    if(attempt===1){
+     // Preserve the local pending snapshot; user may retry manually.
+     throw new Error('Saqlash konflikti saqlanib qoldi. Ma’lumotni yo‘qotmaslik uchun avtomatik qayta urinish to‘xtatildi.');
+    }
+    const current=err.payload?.state&&Number.isSafeInteger(err.payload.revision)
+     ?{state:err.payload.state,revision:err.payload.revision}
+     :await request('/api/state','GET');
     const fresh=safeState(current.state);
-    const previous=lastSaved?clone(lastSaved):clone(fresh);
     revision=Number(current.revision);
-    desired=mergeStates(previous,desired,fresh);
-    // A concurrent request has already persisted the intended outcome.
-    if(eq(desired,fresh)){lastSaved=clone(fresh);return clone(fresh)}
+    desired=mergeStates(lastSaved?clone(lastSaved):fresh,desired,fresh);
     lastSaved=clone(fresh);
+    if(eq(desired,fresh))return clone(fresh);
    }
   }
   throw new Error('Saqlash amalga oshmadi.');
@@ -86,4 +92,5 @@ export function saveCloud(state:State):Promise<State>{
  queue=operation;
  return operation;
 }
+
 export const getLastSaved=()=>lastSaved;

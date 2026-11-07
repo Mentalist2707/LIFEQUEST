@@ -9,5 +9,6 @@ test('state endpoint does not suppress UPDATE when revision exceeds zero',()=>{
 });
 test('state endpoint preserves conflict protection for stale revisions',()=>{
  assert.match(route,/WHERE lifequest_state\.revision=\$\{payload\.revision\} RETURNING revision/);
- assert.match(route,/if\(!rows\.length\)return json\(\{error:.*\},409\)/);
+ assert.match(route,/if\(!rows\.length\)\{/);
+ assert.match(route,/state:latest\.length\?safeState\(latest\[0\]\.data\):null/);
 });

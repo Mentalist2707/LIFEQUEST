@@ -19,7 +19,12 @@ export async function PUT(req:NextRequest){
  const identical=await sql`SELECT revision FROM lifequest_state WHERE id=${id} AND data=${data}::jsonb LIMIT 1`;
  if(identical.length)return json({revision:Number(identical[0].revision),unchanged:true});
  const rows=await sql`INSERT INTO lifequest_state (id,data,revision) VALUES (${id},${data}::jsonb,1) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data,revision=lifequest_state.revision+1,updated_at=now() WHERE lifequest_state.revision=${payload.revision} RETURNING revision`;
- if(!rows.length)return json({error:'Boshqa qurilmada ma’lumot yangilangan. Sahifani qayta oching.'},409);
+ if(!rows.length){
+  // Return the authoritative snapshot and revision so the browser can merge
+  // rather than repeatedly fetching and guessing the latest revision.
+  const latest=await sql`SELECT data, revision FROM lifequest_state WHERE id=${id} LIMIT 1`;
+  return json({error:'Ma’lumot versiyasi o‘zgargan.',revision:latest.length?Number(latest[0].revision):0,state:latest.length?safeState(latest[0].data):null},409);
+ }
  return json({revision:Number(rows[0].revision)});
  }catch(e){if(e instanceof SyntaxError)return json({error:'JSON noto‘g‘ri.'},400);if(e instanceof Error&&/Zaxira|Takroriy|Tarixdagi|XP ma’lumoti/.test(e.message))return json({error:e.message},400);return serverFailure(e)}
 }

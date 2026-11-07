@@ -51,7 +51,7 @@ export default function Workspace({section}:{section:string}){
    setSaveStatus('saved');setSaveError('');return;
   }
   pendingState.current=snapshot;setSaveStatus('saving');setSaveError('');
-  saveCloud(snapshot).then(saved=>{
+  const saveTimer=window.setTimeout(()=>saveCloud(snapshot).then(saved=>{
    // Merge remote changes into the live UI, preserving edits made while request was in flight.
    setState(current=>{
     if(JSON.stringify(saved)===JSON.stringify(snapshot))return current;
@@ -64,7 +64,8 @@ export default function Workspace({section}:{section:string}){
   }).catch(e=>{
    if((e as Error&{status?:number}).status===401){setReady(false);setAuthenticated(false);return}
    if(pendingState.current===snapshot){setSaveStatus('error');setSaveError(e.message)}
-  });
+  }),550);
+  return()=>window.clearTimeout(saveTimer);
  },[state,ready,authenticated]);
  // Only update the clock while open. On reopen, refresh prayer schedules and catch up overdue entries.
  useEffect(()=>{const id=window.setInterval(()=>setClock(Date.now()),1000);return()=>window.clearInterval(id)},[]);
