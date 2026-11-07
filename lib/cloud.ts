@@ -13,39 +13,10 @@ async function request(url:string,method:'GET'|'PUT'|'POST',body?:unknown){
  if(!res.ok){const err=new Error(value.error||`Server xatosi (${res.status})`) as ApiError;err.status=res.status;(err as ApiError & {payload?:any}).payload=value;throw err;}
  return value;
 }
+import {mergeStates,stableEqual} from './merge';
+export {mergeStates} from './merge';
 const clone=(s:State):State=>structuredClone(s);
-const eq=(a:unknown,b:unknown)=>JSON.stringify(a)===JSON.stringify(b);
-function mergeArray<T extends Record<string,any>>(base:T[],local:T[],remote:T[],key:(v:T)=>string,mergeRecord=false):T[]{
- const b=new Map(base.map(v=>[key(v),v]));const l=new Map(local.map(v=>[key(v),v]));const r=new Map(remote.map(v=>[key(v),v]));
- const keys=new Set([...b.keys(),...l.keys(),...r.keys()]);const out:T[]=[];
- for(const k of keys){const bv=b.get(k),lv=l.get(k),rv=r.get(k);
-  if(eq(bv,lv)){if(rv)out.push(rv);continue;}
-  if(lv===undefined){continue;} // explicit local delete wins
-  if(rv&&mergeRecord&&bv&&typeof lv==='object'&&typeof rv==='object'){
-   const merged:any={...rv};for(const field of Object.keys(lv)){if(!eq((bv as any)[field],(lv as any)[field]))merged[field]=(lv as any)[field];}
-   out.push(merged as T);
-  }else out.push(lv);
- }
- return out;
-}
-/** Three-way reconciliation: retain unseen remote records and local edits; never discard signed XP transactions. */
-export function mergeStates(base:State,local:State,remote:State):State{
- const b=safeState(clone(base)),l=safeState(clone(local)),r=safeState(clone(remote));
- const changed=(key:'profile'|'settings')=>({...(r[key] as any),...Object.fromEntries(Object.entries(l[key]).filter(([k,v])=>!eq((b[key] as any)[k],v)))});
- const merged:State={...r,
-  profile:changed('profile'),settings:changed('settings'),prayerConfig:!eq(b.prayerConfig,l.prayerConfig)?l.prayerConfig:r.prayerConfig,
-  quests:mergeArray(b.quests,l.quests,r.quests,x=>x.id,true),
-  completions:mergeArray(b.completions,l.completions,r.completions,x=>x.id),
-  transactions:mergeArray(b.transactions,l.transactions,r.transactions,x=>x.sourceId),
-  rewards:mergeArray(b.rewards,l.rewards,r.rewards,x=>x.date),
-  events:mergeArray(b.events,l.events,r.events,x=>x.id,true),
-  notifications:mergeArray(b.notifications,l.notifications,r.notifications,x=>x.id,true),
-  prayers:mergeArray(b.prayers||[],l.prayers||[],r.prayers||[],x=>`${x.date}:${x.prayer}`),
-  prayerHistory:mergeArray(b.prayerHistory||[],l.prayerHistory||[],r.prayerHistory||[],x=>x.id),
- };
- // Same-date concurrent actions: preserve exactly one outcome, with each historical XP adjustment traceable.
- return safeState(merged);
-}
+const eq=stableEqual;
 export async function authenticate(mode:'login'|'register',email:string,password:string,name:string){await request(`/api/auth/${mode}`,'POST',{email,password,name});revision=0;lastSaved=null;lastEnqueued=null;generation++;queue=Promise.resolve();}
 export async function getSession(){return request('/api/auth/me','GET') as Promise<{user:{id:string;name:string;email:string}}>}
 export async function logout(){await queue.catch(()=>{});await request('/api/auth/logout','POST');revision=0;lastSaved=null;lastEnqueued=null;generation++;queue=Promise.resolve();}
@@ -60,33 +31,20 @@ export function saveCloud(state:State):Promise<State>{
  lastEnqueued=clone(snapshot);
  const perform=async():Promise<State>=>{
   if(myGeneration!==generation)throw new Error('Sessiya almashgan, saqlash bekor qilindi.');
-  let desired=lastSaved?mergeStates(baseline,snapshot,lastSaved):snapshot;
+  const desired=lastSaved?mergeStates(baseline,snapshot,lastSaved):snapshot;
   if(lastSaved&&eq(desired,lastSaved))return clone(lastSaved);
-  // One genuine conflict is merged and retried once. Do NOT hammer the API.
-  for(let attempt=0;attempt<2;attempt++){
-   try{
-    const result=await request('/api/state','PUT',{state:desired,revision});
-    revision=Number(result.revision);
-    lastSaved=clone(desired);
-    return clone(desired);
-   }catch(e){
-    const err=e as ApiError & {payload?:{revision?:number;state?:State}};
-    if(err.status!==409)throw e;
-    if(attempt===1){
-     // Preserve the local pending snapshot; user may retry manually.
-     throw new Error('Saqlash konflikti saqlanib qoldi. Ma’lumotni yo‘qotmaslik uchun avtomatik qayta urinish to‘xtatildi.');
-    }
-    const current=err.payload?.state&&Number.isSafeInteger(err.payload.revision)
-     ?{state:err.payload.state,revision:err.payload.revision}
-     :await request('/api/state','GET');
-    const fresh=safeState(current.state);
-    revision=Number(current.revision);
-    desired=mergeStates(lastSaved?clone(lastSaved):fresh,desired,fresh);
-    lastSaved=clone(fresh);
-    if(eq(desired,fresh))return clone(fresh);
-   }
-  }
-  throw new Error('Saqlash amalga oshmadi.');
+  // Server owns reconciliation and the compare-and-swap retry, using baseline
+  // to distinguish local changes from remote changes.
+  const response=await request('/api/state','PUT',{
+   state:desired,
+   baseState:lastSaved?clone(lastSaved):clone(baseline),
+   revision,
+  }) as {state:State;revision:number};
+  if(myGeneration!==generation)throw new Error('Sessiya almashgan, saqlash bekor qilindi.');
+  revision=Number(response.revision);
+  const canonical=safeState(response.state);
+  lastSaved=clone(canonical);
+  return clone(canonical);
  };
  const operation=queue.catch(()=>{}).then(perform);
  queue=operation;

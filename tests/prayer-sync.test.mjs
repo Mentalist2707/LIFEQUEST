@@ -10,7 +10,7 @@ function load(path, dependencies={}){
  assert.equal(transpiled.diagnostics?.length,0);
  const mod={exports:{}};vm.runInNewContext(transpiled.outputText,{module:mod,exports:mod.exports,require:(name)=>dependencies[name]||{},crypto:globalThis.crypto,structuredClone,Date,Math,Set,Map,Error,Number,String,Array,Object,JSON,Promise,fetch:globalThis.fetch});return mod.exports;
 }
-const e=load('../lib/engine.ts');const cloud=load('../lib/cloud.ts',{'./engine':e});
+const e=load('../lib/engine.ts');const merge=load('../lib/merge.ts',{'./engine':e});const cloud=load('../lib/cloud.ts',{'./engine':e,'./merge':merge});
 test('5 mahal har biri kuniga bittadan hisoblanadi',()=>{
  let s=e.createInitial();for(const p of e.prayers)s=e.setPrayer(s,e.localDate(),p.id,'completed');
  assert.equal(s.prayers.length,5);assert.equal(e.totalXP(s),980);

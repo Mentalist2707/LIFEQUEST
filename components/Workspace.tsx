@@ -47,16 +47,16 @@ export default function Workspace({section}:{section:string}){
   // Server acknowledgements and cloud merges are not fresh user edits.
   // Without this guard, unchanged snapshots can create a PUT/409 feedback loop.
   const persisted=getLastSaved();
-  if(persisted&&JSON.stringify(persisted)===JSON.stringify(snapshot)){
+  if(persisted&&stableEqual(persisted,snapshot)){
    setSaveStatus('saved');setSaveError('');return;
   }
   pendingState.current=snapshot;setSaveStatus('saving');setSaveError('');
   const saveTimer=window.setTimeout(()=>saveCloud(snapshot).then(saved=>{
    // Merge remote changes into the live UI, preserving edits made while request was in flight.
    setState(current=>{
-    if(JSON.stringify(saved)===JSON.stringify(snapshot))return current;
+    if(stableEqual(saved,snapshot))return current;
     const merged=mergeStates(snapshot,current,saved);
-    if(JSON.stringify(merged)===JSON.stringify(current))return current;
+    if(stableEqual(merged,current))return current;
     if(current===snapshot)skipInitialSave.current=true;
     return merged;
    });
@@ -86,7 +86,7 @@ export default function Workspace({section}:{section:string}){
   if(updated!==state)setState(current=>autoMarkMissed(current,schedule,clock));
  },[ready,authenticated,clock,schedule,state,prayerToday]);
  const retrySave=()=>{if(!authenticated)return;setSaveStatus('saving');saveCloud(state).then(saved=>{
-  setState(current=>{const merged=mergeStates(state,current,saved);if(JSON.stringify(merged)===JSON.stringify(current))return current;if(current===state)skipInitialSave.current=true;return merged});setSaveStatus('saved');setSaveError('');
+  setState(current=>{const merged=mergeStates(state,current,saved);if(stableEqual(merged,current))return current;if(current===state)skipInitialSave.current=true;return merged});setSaveStatus('saved');setSaveError('');
  }).catch(e=>{setSaveStatus('error');setSaveError(e.message)});};
  const login=async(e:React.FormEvent)=>{e.preventDefault();
   setLoggingIn(true);setError('');
