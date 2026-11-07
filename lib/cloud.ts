@@ -20,6 +20,14 @@ const eq=stableEqual;
 export async function authenticate(mode:'login'|'register',email:string,password:string,name:string){await request(`/api/auth/${mode}`,'POST',{email,password,name});revision=0;lastSaved=null;lastEnqueued=null;generation++;queue=Promise.resolve();}
 export async function getSession(){return request('/api/auth/me','GET') as Promise<{user:{id:string;name:string;email:string}}>}
 export async function logout(){await queue.catch(()=>{});await request('/api/auth/logout','POST');revision=0;lastSaved=null;lastEnqueued=null;generation++;queue=Promise.resolve();}
+export async function bootstrapCloud():Promise<{state:State;user:{id:string;name:string;email:string}}>{
+ await queue.catch(()=>{});
+ const result=await request('/api/bootstrap','GET');
+ revision=Number(result.revision);
+ const state=safeState(result.state);
+ lastSaved=clone(state);lastEnqueued=clone(state);
+ return {state,user:result.user};
+}
 export async function loadCloud():Promise<State>{await queue.catch(()=>{});const result=await request('/api/state','GET');revision=result.revision;const state=safeState(result.state);lastSaved=clone(state);lastEnqueued=clone(state);return state;}
 /** Serialized, idempotent state persistence. Each request waits for the prior write.
  * The server remains the authority for revisions. A state that has already been

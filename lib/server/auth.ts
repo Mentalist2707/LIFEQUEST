@@ -10,7 +10,7 @@ const headers={'Cache-Control':'private, no-store'};
 export function json(data:unknown,status=200){return NextResponse.json(data,{status,headers});}
 export function client(){const url=process.env.DATABASE_URL||process.env.NEON_DATABASE_URL;if(!url)throw new Error('DATABASE_URL sozlanmagan');return neon(url);}
 export type SQL=ReturnType<typeof client>;
-export async function schema(sql:SQL){
+async function createSchema(sql:SQL){
  await sql`CREATE TABLE IF NOT EXISTS lifequest_users (
   id uuid PRIMARY KEY, email text NOT NULL UNIQUE, name text NOT NULL,
   password_hash text NOT NULL, created_at timestamptz NOT NULL DEFAULT now(),
@@ -25,6 +25,16 @@ export async function schema(sql:SQL){
   updated_at timestamptz NOT NULL DEFAULT now()
  )`;
 }
+/** Schema check is shared across requests in a warm Vercel instance.
+ * A rejected initialization is retried next time. */
+let schemaReady:Promise<void>|null=null;
+export function schema(sql:SQL):Promise<void>{
+ if(!schemaReady){
+  schemaReady=createSchema(sql).catch(error=>{schemaReady=null;throw error});
+ }
+ return schemaReady;
+}
+
 export const digest=(v:string)=>createHash('sha256').update(v).digest('hex');
 export async function hashPassword(password:string){const salt=randomBytes(16).toString('hex');const derived=await scrypt(password,salt,64) as Buffer;return `scrypt:${salt}:${derived.toString('hex')}`;}
 export async function verifyPassword(password:string,encoded:string){const [algo,salt,hex]=encoded.split(':');if(algo!=='scrypt'||!salt||!hex||hex.length!==128)return false;const actual=await scrypt(password,salt,64) as Buffer;return timingSafeEqual(actual,Buffer.from(hex,'hex'));}

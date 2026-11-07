@@ -1,2 +1,1 @@
-import Workspace from '@/components/Workspace';
-export default function Page(){return <Workspace section="home"/>}
+export default function Page(){return null;}

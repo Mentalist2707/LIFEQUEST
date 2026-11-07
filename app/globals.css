@@ -532,3 +532,13 @@ input,textarea,select{background:linear-gradient(180deg,#20364f,#1a2f46);border-
 .quest-penalty-tag{font-size:10px;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);padding:5px 8px;border-radius:999px;white-space:nowrap}
 
 .level-pill.xp-negative{color:#fecaca;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.4)}
+
+/* Isolated one-second prayer timer; the rest of the app refreshes each 30s. */
+.countdown-value{font-variant-numeric:tabular-nums;letter-spacing:.03em;color:inherit}
+
+/* Full-screen first-load indicator, shown until a verified Neon snapshot arrives. */
+.loading-progress{width:min(270px,70vw);height:5px;border-radius:999px;background:#1a3550;overflow:hidden;margin:14px auto 4px}
+.loading-progress span{display:block;height:100%;width:40%;border-radius:inherit;background:linear-gradient(90deg,#2563eb,#00e5ff);animation:lifequest-load 1.4s ease-in-out infinite}
+.loading-description{font-size:13px;color:#adc2d7;font-weight:500;line-height:1.5;text-align:center}
+@keyframes lifequest-load{0%{transform:translateX(-100%)}100%{transform:translateX(320%)}}
+@media(prefers-reduced-motion:reduce){.loading-progress span{animation:none;width:70%}}

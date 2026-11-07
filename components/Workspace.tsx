@@ -1,13 +1,14 @@
 'use client';
 import {useCallback,useEffect,useMemo,useState,useRef} from 'react';
 import Link from 'next/link';
-import {useRouter} from 'next/navigation';
+import {usePathname,useRouter} from 'next/navigation';
 import {motion,AnimatePresence} from 'framer-motion';
 import {Home,CheckSquare,UserRound,Trophy,CalendarDays,Settings as SettingsIcon,Plus,Search,Gift,Flame,Star,BookOpen,Heart,Wallet,Briefcase,Users,Sparkles,Trash2,Edit3,Check,Clock,ChevronLeft,ChevronRight,Download,Upload,BarChart3,Swords,Package,ArrowUpCircle,Bell, X,ShieldCheck,Target,CalendarPlus,Volume2,Medal,Save,MoonStar,RotateCcw,CloudUpload} from 'lucide-react';
 import {State,Quest,QuestKind,Category,Difficulty,Priority,CalendarEvent,PrayerName,PrayerStatus,categories,difficultyLabels,priorityLabels,kindLabels,xpByDifficulty,titles} from '@/lib/types';
 import {uid,localDate,dayOffset,weekStart,monthStart,progress,totalXP,skillXP,completionFor,dueToday,streaks,checkAchievements,achievements,createInitial,completeQuest,claimReward,safeState,countOn,prayers,setPrayer,assessMissedDailyQuests} from '@/lib/engine';
-import {loadCloud,saveCloud,authenticate,getSession,logout,mergeStates,getLastSaved} from '@/lib/cloud';
+import {bootstrapCloud,saveCloud,authenticate,logout,mergeStates,getLastSaved} from '@/lib/cloud';
 import {stableEqual} from '@/lib/merge';
+import {readCachedSnapshot,writeCachedSnapshot,deleteCachedSnapshot} from '@/lib/cache';
 import {CITIES,CityKey,Schedule,uzDate,uzTimestamp,isoDayOffset,prayerWindow,currentPrayer,timeLeft,autoMarkMissed} from '@/lib/prayer-times';
 const nav=[{id:'home',label:'Bosh sahifa',Icon:Home},{id:'quests',label:'Vazifalar',Icon:CheckSquare},{id:'character',label:'Qahramon',Icon:UserRound},{id:'prayer',label:'Namoz',Icon:MoonStar},{id:'achievements',label:'Yutuqlar',Icon:Trophy},{id:'calendar',label:'Taqvim',Icon:CalendarDays}];
 const extras=[{id:'skills',label:'Ko‘nikmalar',Icon:Swords},{id:'inventory',label:'Xazina',Icon:Package},{id:'statistics',label:'Statistika',Icon:BarChart3},{id:'settings',label:'Sozlamalar',Icon:SettingsIcon}];
@@ -30,57 +31,108 @@ function IconButton({onClick,children,title}:{onClick:()=>void;children:React.Re
 function Stat({icon:Icon,label,value,color='#00E5FF'}:{icon:typeof Home;label:string;value:string|number;color?:string}){return <div className="stat panel"><Icon size={20} style={{color}}/><strong>{value}</strong><span>{label}</span></div>}
 function CardHeading({children,action}:{children:React.ReactNode;action?:React.ReactNode}){return <div className="section-head"><h2>{children}</h2>{action}</div>}
 function Empty({text}:{text:string}){return <div className="empty"><Sparkles size={30}/><p>{text}</p></div>}
-export default function Workspace({section}:{section:string}){
- const router=useRouter();const [state,setState]=useState<State>(createInitial);const [ready,setReady]=useState(false);const [error,setError]=useState('');const [toast,setToast]=useState('');const [editor,setEditor]=useState<Quest|null>(null);const [search,setSearch]=useState('');const [filter,setFilter]=useState('all');const [categoryFilter,setCategoryFilter]=useState('all');const [difficultyFilter,setDifficultyFilter]=useState('all');const [selectedDate,setSelectedDate]=useState(localDate());const [calendarMode,setCalendarMode]=useState<'month'|'week'>('month');const [eventEditor,setEventEditor]=useState(false);const [eventTitle,setEventTitle]=useState('');const [eventDetails,setEventDetails]=useState('');const [showNotifications,setShowNotifications]=useState(false);const [importMode,setImportMode]=useState(false);const [authenticated,setAuthenticated]=useState(false);const [authMode,setAuthMode]=useState<'login'|'register'>('login');const [authName,setAuthName]=useState('');const [authEmail,setAuthEmail]=useState('');const [authPassword,setAuthPassword]=useState('');const [loggingIn,setLoggingIn]=useState(false);const [checkingSession,setCheckingSession]=useState(true);const skipInitialSave=useRef(true);const [saveStatus,setSaveStatus]=useState<'saved'|'saving'|'error'>('saved');const [saveError,setSaveError]=useState('');const pendingState=useRef<State|null>(null);
+function Countdown({target}:{target:number}){
+ const [now,setNow]=useState(()=>Date.now());
+ useEffect(()=>{const id=window.setInterval(()=>setNow(Date.now()),1000);return()=>window.clearInterval(id)},[]);
+ return <strong className="countdown-value">{countdownText(target,now)}</strong>;
+}
+export default function Workspace(){
+ const pathname=usePathname();
+ const section=pathname==='/'?'home':(pathname||'/').split('/')[1];
+ const router=useRouter();const [state,setState]=useState<State>(createInitial);const [ready,setReady]=useState(false);const [error,setError]=useState('');const [initialLoadError,setInitialLoadError]=useState('');const [toast,setToast]=useState('');const [editor,setEditor]=useState<Quest|null>(null);const [search,setSearch]=useState('');const [filter,setFilter]=useState('all');const [categoryFilter,setCategoryFilter]=useState('all');const [difficultyFilter,setDifficultyFilter]=useState('all');const [selectedDate,setSelectedDate]=useState(localDate());const [calendarMode,setCalendarMode]=useState<'month'|'week'>('month');const [eventEditor,setEventEditor]=useState(false);const [eventTitle,setEventTitle]=useState('');const [eventDetails,setEventDetails]=useState('');const [showNotifications,setShowNotifications]=useState(false);const [importMode,setImportMode]=useState(false);const [authenticated,setAuthenticated]=useState(false);const [authMode,setAuthMode]=useState<'login'|'register'>('login');const [authName,setAuthName]=useState('');const [authEmail,setAuthEmail]=useState('');const [authPassword,setAuthPassword]=useState('');const [loggingIn,setLoggingIn]=useState(false);const [checkingSession,setCheckingSession]=useState(true);const [loadingPhase,setLoadingPhase]=useState('Hisob va ma’lumotlar xavfsiz yuklanmoqda…');const skipInitialSave=useRef(true);const [saveStatus,setSaveStatus]=useState<'saved'|'saving'|'error'>('saved');const [saveError,setSaveError]=useState('');const pendingState=useRef<State|null>(null);const [userId,setUserId]=useState('');
  const [salawatTarget,setSalawatTarget]=useState<{date:string;prayer:PrayerName;kind:'completed'|'madeup'}|null>(null);const [clock,setClock]=useState(()=>Date.now());const [schedule,setSchedule]=useState<Schedule>({});const [scheduleError,setScheduleError]=useState('');const [scheduleLoading,setScheduleLoading]=useState(false);const [chosenCity,setChosenCity]=useState<CityKey>('tashkent');
  const activeCity=(state.prayerConfig?.city&&state.prayerConfig.city in CITIES?state.prayerConfig.city:chosenCity) as CityKey;
  const prayerToday=uzDate(new Date(clock));const prayerStatus=currentPrayer(schedule,clock);
 
  const today=localDate();const xp=totalXP(state);const lvl=progress(xp);const streak=streaks(state);const unlocked=checkAchievements(state);const achievementCount=unlocked.filter(Boolean).length;
  const notify=(message:string)=>{setToast(message);};
+ // Session and initial cloud snapshot load exactly once per app lifetime.
+ // The shell lives in the root layout, so Next.js route changes do not remount it.
  useEffect(()=>{let active=true;
-  getSession().then(()=>loadCloud()).then(loaded=>{if(active){skipInitialSave.current=true;setState(loaded);setAuthenticated(true);setReady(true);setCheckingSession(false);}}).catch(e=>{if(active){if(e.status===401){setAuthenticated(false);setError('')}else setError(e.message);setCheckingSession(false);}});
+  (async()=>{
+   try{
+    setLoadingPhase('Neon bazasidan ma’lumotlar olinmoqda…');
+    const {user,state:remote}=await bootstrapCloud();
+    if(!active)return;
+    const id=user.id;
+    const cached=await readCachedSnapshot(id).catch(()=>null);
+    if(!active)return;
+    const merged=cached?.pending?mergeStates(cached.base,cached.state,remote):remote;
+    const hasPending=!stableEqual(merged,remote);
+    skipInitialSave.current=!hasPending;
+    setUserId(id);setState(merged);setAuthenticated(true);setReady(true);setCheckingSession(false);
+    if(!hasPending)void writeCachedSnapshot(id,{state:remote,base:remote,pending:false,updatedAt:Date.now()}).catch(()=>{});
+   }catch(e){
+    if(!active)return;
+    const err=e as Error&{status?:number};
+    if(err.status===401){setAuthenticated(false);setError('')}
+    else setInitialLoadError(err.message||'Ma’lumot yuklanmadi');
+    setCheckingSession(false);
+   }
+  })();
   if('serviceWorker'in navigator)navigator.serviceWorker.register('/sw.js').catch(()=>{});
-  return()=>{active=false};},[]);
- useEffect(()=>{if(!ready||!authenticated)return;
+  return()=>{active=false};
+ },[]);
+ useEffect(()=>{window.scrollTo(0,0);},[pathname]);
+ useEffect(()=>{
+  if(!ready||!authenticated||!userId)return;
   if(skipInitialSave.current){skipInitialSave.current=false;return;}
   const snapshot=state;
-  // Server acknowledgements and cloud merges are not fresh user edits.
-  // Without this guard, unchanged snapshots can create a PUT/409 feedback loop.
   const persisted=getLastSaved();
   if(persisted&&stableEqual(persisted,snapshot)){
    setSaveStatus('saved');setSaveError('');return;
   }
-  pendingState.current=snapshot;setSaveStatus('saving');setSaveError('');
-  const saveTimer=window.setTimeout(()=>saveCloud(snapshot).then(saved=>{
-   // Merge remote changes into the live UI, preserving edits made while request was in flight.
-   setState(current=>{
-    if(stableEqual(saved,snapshot))return current;
-    const merged=mergeStates(snapshot,current,saved);
-    if(stableEqual(merged,current))return current;
-    if(current===snapshot)skipInitialSave.current=true;
-    return merged;
+  pendingState.current=snapshot;
+  setSaveStatus('saving');setSaveError('');
+  // Write a recovery copy before the cloud write. This is account-scoped.
+  void writeCachedSnapshot(userId,{state:snapshot,base:persisted||snapshot,pending:true,updatedAt:Date.now()}).catch(()=>{});
+  const saveTimer=window.setTimeout(()=>{
+   saveCloud(snapshot).then(saved=>{
+    setState(current=>{
+     if(stableEqual(saved,snapshot))return current;
+     const merged=mergeStates(snapshot,current,saved);
+     if(stableEqual(merged,current))return current;
+     if(current===snapshot)skipInitialSave.current=true;
+     return merged;
+    });
+    // A newer edit may already exist. Never mark its recovery copy as saved.
+    if(pendingState.current===snapshot){
+     void writeCachedSnapshot(userId,{state:saved,base:saved,pending:false,updatedAt:Date.now()}).catch(()=>{});
+     setSaveStatus('saved');setSaveError('');
+    }
+   }).catch(e=>{
+    if((e as Error&{status?:number}).status===401){setReady(false);setAuthenticated(false);return;}
+    if(pendingState.current===snapshot){setSaveStatus('error');setSaveError(e.message);}
    });
-   if(pendingState.current===snapshot){setSaveStatus('saved');setSaveError('')}
-  }).catch(e=>{
-   if((e as Error&{status?:number}).status===401){setReady(false);setAuthenticated(false);return}
-   if(pendingState.current===snapshot){setSaveStatus('error');setSaveError(e.message)}
-  }),550);
+  },750);
   return()=>window.clearTimeout(saveTimer);
- },[state,ready,authenticated]);
+ },[state,ready,authenticated,userId]);
  // Only update the clock while open. On reopen, refresh prayer schedules and catch up overdue entries.
- useEffect(()=>{const id=window.setInterval(()=>setClock(Date.now()),1000);return()=>window.clearInterval(id)},[]);
+ useEffect(()=>{const id=window.setInterval(()=>setClock(Date.now()),30000);return()=>window.clearInterval(id)},[]);
  useEffect(()=>{
   if(!ready||!authenticated)return;
   let cancelled=false;
-  setSchedule({});setScheduleError('');setScheduleLoading(true);
-  const date=uzDate();const monthStart=`${date.slice(0,7)}-01`;const months=[date.slice(0,7),isoDayOffset(monthStart,-1).slice(0,7),new Date(Date.parse(`${monthStart}T00:00:00Z`)+35*86400000).toISOString().slice(0,7)];
+  setScheduleError('');setScheduleLoading(true);
+  const date=uzDate();const monthStart=`${date.slice(0,7)}-01`;
+  const months=[date.slice(0,7),isoDayOffset(monthStart,-1).slice(0,7),new Date(Date.parse(`${monthStart}T00:00:00Z`)+35*86400000).toISOString().slice(0,7)];
   Promise.all([...new Set(months)].map(async month=>{
-   const response=await fetch(`/api/prayer-times?city=${encodeURIComponent(activeCity)}&month=${month}`,{cache:'no-store'});
-   const json=await response.json();if(!response.ok)throw new Error(json.error||'Namoz jadvali olinmadi');return json.days as Array<{date:string}>;
-  })).then(groups=>{if(cancelled)return;const byDate:Schedule={};for(const group of groups)for(const day of group)byDate[day.date]=day as Schedule[string];setSchedule(byDate);setScheduleError('');}).catch(e=>{if(!cancelled){setScheduleError((e as Error).message);setSchedule({})}}).finally(()=>{if(!cancelled)setScheduleLoading(false)});
+   const key=`lifequest-prayer-v1:${activeCity}:${month}`;
+   let cached:{at:number;days:Array<{date:string}>}|null=null;
+   try{cached=JSON.parse(sessionStorage.getItem(key)||'null')}catch{}
+   if(cached&&Date.now()-cached.at<6*60*60*1000)return cached.days;
+   const response=await fetch(`/api/prayer-times?city=${encodeURIComponent(activeCity)}&month=${month}`,{cache:'default'});
+   const json=await response.json();
+   if(!response.ok){if(cached?.days?.length)return cached.days;throw new Error(json.error||'Namoz jadvali olinmadi');}
+   try{sessionStorage.setItem(key,JSON.stringify({at:Date.now(),days:json.days}))}catch{}
+   return json.days as Array<{date:string}>;
+  })).then(groups=>{
+   if(cancelled)return;
+   const byDate:Schedule={};for(const group of groups)for(const day of group)byDate[day.date]=day as Schedule[string];
+   setSchedule(byDate);setScheduleError('');
+  }).catch(e=>{if(!cancelled)setScheduleError((e as Error).message)})
+   .finally(()=>{if(!cancelled)setScheduleLoading(false)});
   return()=>{cancelled=true};
- },[ready,authenticated,activeCity]);
+ },[ready,authenticated,activeCity,prayerToday.slice(0,7)]);
  useEffect(()=>{
   if(!ready||!authenticated||!state.prayerConfig?.enabledAt||!schedule[prayerToday])return;
   const updated=autoMarkMissed(state,schedule,clock);
@@ -93,10 +145,10 @@ export default function Workspace({section}:{section:string}){
  }).catch(e=>{setSaveStatus('error');setSaveError(e.message)});};
  const login=async(e:React.FormEvent)=>{e.preventDefault();
   setLoggingIn(true);setError('');
-  try{await authenticate(authMode,authEmail,authPassword,authName);const loaded=await loadCloud();setAuthenticated(true);skipInitialSave.current=true;setState(loaded);setReady(true);setAuthPassword('');}
+  try{await authenticate(authMode,authEmail,authPassword,authName);const {user,state:loaded}=await bootstrapCloud();setUserId(user.id);setAuthenticated(true);skipInitialSave.current=true;setState(loaded);setReady(true);setAuthPassword('');void writeCachedSnapshot(user.id,{state:loaded,base:loaded,pending:false,updatedAt:Date.now()}).catch(()=>{});}
   catch(e){setError((e as Error).message)}finally{setLoggingIn(false)};
  };
- const signOut=async()=>{setError('');try{await logout();setAuthenticated(false);setReady(false);setState(createInitial());skipInitialSave.current=true;setAuthPassword('');location.reload()}catch(e){notify((e as Error).message)}};
+ const signOut=async()=>{setError('');try{await logout();if(userId)await deleteCachedSnapshot(userId).catch(()=>{});setUserId('');setAuthenticated(false);setReady(false);setState(createInitial());skipInitialSave.current=true;setAuthPassword('');location.reload()}catch(e){notify((e as Error).message)}};
  useEffect(()=>{if(!toast)return;const t=setTimeout(()=>setToast(''),3300);return()=>clearTimeout(t)},[toast]);
  useEffect(()=>{if(!ready||!state.settings.notifications||!('Notification'in window))return;const overdue=state.quests.filter(q=>!q.archived&&q.due&&q.due<today&&!completionFor(state,q));if(overdue.length&&Notification.permission==='granted'){new Notification('LIFEQUEST',{body:`${overdue.length} ta vazifa muddati o‘tgan`})}},[ready,state.settings.notifications,today]);
  const mutate=(fn:(prev:State)=>State)=>setState(prev=>fn(prev));
@@ -137,7 +189,7 @@ export default function Workspace({section}:{section:string}){
    const isUpcoming=!!windowTime&&!timeExpired&&clock<windowTime.start;
    const statusClass=status==='completed'?'performed':status==='madeup'?'madeup':status==='qazo'||timeExpired?'missed':isCurrent?'current':'upcoming';
    const countLabel=status==='completed'?'Vaqtida o‘qilgan':status==='madeup'?'Qazosi o‘qilgan':status==='qazo'?'Qazo':timeExpired?'Vaqti tugagan':isCurrent?'Vaqti kirgan':isUpcoming?'Hali vaqti kirmagan':'Jadval kutilmoqda';
-   const timeLabel=status==='completed'?'Namoz qayd etilgan':status==='madeup'?'Qazo ado etilgan':status==='qazo'?'Qazo ro‘yxatida':isCurrent&&windowTime?`Vaqt tugashiga ${countdownText(windowTime.end,clock)}`:isUpcoming&&windowTime?`Vaqt kirishiga ${countdownText(windowTime.start,clock)}`:timeExpired?'O‘qish vaqti tugagan':'Jadval yuklanmoqda';
+   const timeLabel=status==='completed'?'Namoz qayd etilgan':status==='madeup'?'Qazo ado etilgan':status==='qazo'?'Qazo ro‘yxatida':isCurrent&&windowTime?`Vaqt tugashiga`:isUpcoming&&windowTime?`Vaqt kirishiga`:timeExpired?'O‘qish vaqti tugagan':'Jadval yuklanmoqda';
    return {pr,status,timeExpired,mayClaimOnTime,statusClass,countLabel,timeLabel};
   });
   const missed=rows.filter(r=>r.status==='qazo'||r.status==='madeup'||(r.status==='pending'&&r.timeExpired));
@@ -153,7 +205,7 @@ export default function Workspace({section}:{section:string}){
     {!state.prayerConfig&&<div className="prayer-enable"><span className="muted small">Avtomatik qazo nazorati yoqilgan paytdan boshlab ishlaydi.</span><button type="button" className="primary-btn" disabled={!todaySchedule} onClick={()=>mutate(s=>({...s,prayerConfig:{city:activeCity,enabledAt:new Date().toISOString()}}))}>Avtomatik nazoratni yoqish</button></div>}
     <div className="prayer-long-list">{rows.map(({pr,status,timeExpired,mayClaimOnTime,statusClass,countLabel,timeLabel})=><article className={`prayer-long-card prayer-status-${statusClass}`} key={pr.id}>
       <div className="prayer-long-top"><h3>{pr.label}</h3><span className="prayer-long-status">{countLabel}</span></div>
-      <p className="prayer-long-time" aria-live="off">{timeLabel}</p>
+      <p className="prayer-long-time" aria-live="off">{timeLabel}{(isCurrent||isUpcoming)&&windowTime&&<span> <Countdown target={isCurrent?windowTime.end:windowTime.start}/></span>}</p>
       {status==='pending'&&mayClaimOnTime&&<button type="button" className="prayer-long-button" onClick={()=>setSalawatTarget({date:selectedDate,prayer:pr.id,kind:'completed'})}>O‘qidim · +{pr.xp} XP</button>}
       {status==='pending'&&!mayClaimOnTime&&<div className="prayer-long-hint">{timeExpired?'Qazo bo‘limidan belgilashingiz mumkin.':'Vaqti kirganda “O‘qidim” tugmasi paydo bo‘ladi.'}</div>}
       {status==='completed'&&<div className="prayer-long-hint">Vaqtida ado etilgan</div>}
@@ -182,7 +234,8 @@ export default function Workspace({section}:{section:string}){
  const inventoryPage=()=> <><SectionTitle subtitle="Qo‘lga kiritilgan mukofot va unvonlar to‘plami.">Xazina</SectionTitle><section className="panel padded"><CardHeading>Yig‘ilgan nishonlar</CardHeading><div className="achievement-grid">{achievements.filter((a,i)=>unlocked[i]).length?achievements.filter((a,i)=>unlocked[i]).map(a=><div className="inventory-item" key={a.name}><span>{a.icon}</span><strong>{a.name}</strong></div>):<Empty text="Hozircha nishon yo‘q."/>}</div></section><section className="panel padded"><CardHeading>Ochilgan unvonlar</CardHeading><div className="titles">{titles.map((t,i)=><span className={lvl.level>=1+i*5?'owned':''} key={t}>{lvl.level>=1+i*5?'✦':'🔒'} {t}</span>)}</div></section><section className="panel padded"><CardHeading>Kunlik mukofotlar</CardHeading><p className="muted">{state.rewards.length} ta kunlik sovg‘a · jami {state.rewards.reduce((a,r)=>a+r.xp,0)} XP</p>{state.rewards.slice().reverse().slice(0,20).map(r=><div className="history-row" key={r.date}><span><Gift size={15}/> {fmt(r.date)}</span><b>+{r.xp} XP</b></div>)}</section><section className="panel padded"><CardHeading>Buloq Coins</CardHeading><p className="muted">Virtual tanga tizimi keyingi versiyalar uchun mo‘ljallangan. Hozircha tanga berilmaydi va xarid imkoniyati yo‘q.</p></section></>;
  const statsPage=()=>{const last14=Array.from({length:14},(_,i)=>dayOffset(today,i-13));const totals=categories.map(c=>({name:c.label,n:state.completions.filter(x=>x.category===c.id).length,color:c.color}));const max=Math.max(1,...last14.map(d=>countOn(state,d)));const best=totals.slice().sort((a,b)=>b.n-a.n)[0];const unique=new Set(state.completions.map(c=>c.date));return <><SectionTitle subtitle="Barcha natijalar saqlangan haqiqiy harakatlar asosida hisoblanadi.">Statistika</SectionTitle><div className="stat-grid"><Stat icon={Check} label="Bajarilgan" value={state.completions.length}/><Stat icon={Star} label="XP" value={xp}/><Stat icon={Flame} label="Faol kunlar" value={unique.size}/><Stat icon={Trophy} label="Eng yaxshi seriya" value={streak.longest}/></div><section className="panel padded"><CardHeading>Oxirgi 14 kun — vazifalar</CardHeading><div className="chart">{last14.map(d=>{const n=countOn(state,d);return <div className="chart-col" key={d} title={`${fmt(d)}: ${n} ta`}><b>{n||''}</b><div style={{height:`${Math.max(4,n/max*130)}px`}}/><small>{d.slice(8)}</small></div>})}</div></section><section className="panel padded"><CardHeading>Yo‘nalishlar bo‘yicha</CardHeading>{totals.map(c=><div className="metric" key={c.name}><span>{c.name}<b>{c.n} ta</b></span><div className="bar"><div style={{width:`${pct(c.n,state.completions.length)}%`,background:c.color}}/></div></div>)}<p className="muted small">Eng faol yo‘nalish: {best?.n?best.name:'Hali aniqlanmagan'}</p></section><section className="panel padded"><CardHeading>XP tarixi</CardHeading>{state.transactions.length?state.transactions.slice().reverse().slice(0,40).map(t=><div className="history-row" key={t.id}><span>{fmt(t.date)} · {t.reason}</span><b>{t.amount>0?'+':''}{t.amount} XP</b></div>):<Empty text="Hozircha XP tranzaksiyasi mavjud emas."/>}</section></>};
  const settingsPage=()=> <><SectionTitle subtitle="Profil va ma’lumotlaringizni boshqaring.">Sozlamalar</SectionTitle><section className="panel padded settings-block"><CardHeading>Profil</CardHeading><label>Qahramon ismi<input value={state.profile.name} maxLength={40} onChange={e=>mutate(s=>({...s,profile:{...s.profile,name:e.target.value}}))}/></label><label>Avatar belgisi (emoji)<input value={state.profile.avatar.startsWith('data:')?'':state.profile.avatar} placeholder="🧙" maxLength={5} onChange={e=>mutate(s=>({...s,profile:{...s.profile,avatar:e.target.value}}))}/></label><label>Avatar rasmini yuklash<input type="file" accept="image/*" onChange={async e=>{const f=e.target.files?.[0];if(!f)return;if(f.size>2_000_000){notify('Rasm hajmi 2 MB dan kichik bo‘lsin');return}const reader=new FileReader();reader.onload=()=>mutate(s=>({...s,profile:{...s.profile,avatar:String(reader.result)}}));reader.readAsDataURL(f)}}/></label></section><section className="panel padded settings-block"><CardHeading>Ilova imkoniyatlari</CardHeading>{([{key:'sound',title:'Ovozli effektlar'},{key:'animations',title:'Animatsiyalar'},{key:'notifications',title:'Brauzer xabarnomalari'}] as const).map(x=><label className="toggle-line" key={x.key}><span>{x.title}</span><input type="checkbox" checked={state.settings[x.key]} onChange={async e=>{let checked=e.target.checked;if(x.key==='notifications'&&checked){if(!('Notification'in window)){notify('Brauzeringiz bildirishnomalarni qo‘llamaydi');return}checked=(await Notification.requestPermission())==='granted';if(!checked)notify('Bildirishnomaga ruxsat berilmadi')}mutate(s=>({...s,settings:{...s.settings,[x.key]:checked}}))}}/></label>)}<label>Mavzu<select value={state.settings.theme} onChange={e=>mutate(s=>({...s,settings:{...s.settings,theme:e.target.value as 'dark'|'midnight'}}))}><option value="dark">Dark Fantasy</option><option value="midnight">Midnight Blue</option></select></label></section><section className="panel padded settings-block"><CardHeading>Ma’lumotlarni boshqarish</CardHeading><button className="secondary-btn" onClick={signOut}>Hisobdan chiqish</button><p className="muted">Ma’lumotlar Neon PostgreSQL bazasida shaxsiy hisobingizga saqlanadi. Saqlash uchun internet kerak. Vaqti-vaqti bilan JSON zaxira olishni tavsiya qilamiz.</p><button className="secondary-btn" onClick={exportData}><Download size={17}/> JSON zaxira nusxasini olish</button><label className="secondary-btn file-label"><Upload size={17}/> JSON zaxirasini tiklash<input type="file" accept="application/json,.json" onChange={e=>importData(e.target.files?.[0])}/></label><button className="danger-btn" onClick={()=>{if(confirm('DIQQAT: Barcha vazifalar, XP va tarix o‘chadi. Davom etasizmi?')&&confirm('Yana bir bor tasdiqlang: barcha ma’lumot tiklab bo‘lmas tarzda yo‘qoladi.')){setState(createInitial());notify('Barcha ma’lumotlar tozalandi')}}}><Trash2 size={17}/> Barcha rivojlanishni tiklash (reset)</button></section></>;
- if(!ready)return <div className="loading-screen" style={{padding:24,textAlign:'center'}}><Sparkles size={45}/><h2>LIFEQUEST</h2><span>Neon bulut bazasi</span>{checkingSession?<p>Hisob tekshirilmoqda...</p>:<form onSubmit={login} style={{maxWidth:360,width:'100%',display:'grid',gap:12,marginTop:22,textAlign:'left'}}>
+ if(!ready&&initialLoadError&&!checkingSession)return <div className="error-screen"><h2>Ma’lumot yuklanmadi</h2><p>{initialLoadError}</p><p>Internet yoki Neon bazasi bilan aloqa tiklangach qayta urinib ko‘ring. Ma’lumotlaringiz o‘chirilmagan.</p><button className="secondary-btn" onClick={()=>location.reload()}>Qayta yuklash</button></div>;
+ if(!ready)return <div className="loading-screen" style={{padding:24,textAlign:'center'}}><Sparkles size={45}/><h2>LIFEQUEST</h2><span>Neon bulut bazasi</span>{checkingSession?<><div className="loading-progress" role="progressbar"><span/></div><p className="loading-description">{loadingPhase}</p></>:<form onSubmit={login} style={{maxWidth:360,width:'100%',display:'grid',gap:12,marginTop:22,textAlign:'left'}}>
  <h3 style={{textAlign:'center'}}>{authMode==='login'?'Hisobga kirish':'Ro‘yxatdan o‘tish'}</h3>
  {authMode==='register'&&<label>Ism<input type="text" value={authName} onChange={e=>setAuthName(e.target.value)} autoComplete="name" minLength={2} maxLength={60} required/></label>}
  <label>Email<input type="email" value={authEmail} onChange={e=>setAuthEmail(e.target.value)} autoComplete="email" placeholder="siz@example.com" required/></label>
