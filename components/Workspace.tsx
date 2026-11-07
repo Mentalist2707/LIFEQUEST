@@ -190,7 +190,7 @@ export default function Workspace(){
    const statusClass=status==='completed'?'performed':status==='madeup'?'madeup':status==='qazo'||timeExpired?'missed':isCurrent?'current':'upcoming';
    const countLabel=status==='completed'?'Vaqtida o‘qilgan':status==='madeup'?'Qazosi o‘qilgan':status==='qazo'?'Qazo':timeExpired?'Vaqti tugagan':isCurrent?'Vaqti kirgan':isUpcoming?'Hali vaqti kirmagan':'Jadval kutilmoqda';
    const timeLabel=status==='completed'?'Namoz qayd etilgan':status==='madeup'?'Qazo ado etilgan':status==='qazo'?'Qazo ro‘yxatida':isCurrent&&windowTime?`Vaqt tugashiga`:isUpcoming&&windowTime?`Vaqt kirishiga`:timeExpired?'O‘qish vaqti tugagan':'Jadval yuklanmoqda';
-   return {pr,status,timeExpired,mayClaimOnTime,statusClass,countLabel,timeLabel};
+   return {pr,status,timeExpired,mayClaimOnTime,isCurrent,isUpcoming,windowTime,statusClass,countLabel,timeLabel};
   });
   const missed=rows.filter(r=>r.status==='qazo'||r.status==='madeup'||(r.status==='pending'&&r.timeExpired));
   return <><SectionTitle subtitle="Besh mahal namoz — bir sahifada, aniq va qulay.">Namoz</SectionTitle>
@@ -203,7 +203,7 @@ export default function Workspace(){
     {scheduleError&&<div className="prayer-warning" role="alert">Namoz jadvali olinmadi: {scheduleError}. Vaqt aniqlanmaguncha namozni vaqtida deb belgilab bo‘lmaydi. <button className="secondary-btn" onClick={()=>location.reload()}>Qayta yuklash</button></div>}
     {scheduleLoading&&<p className="muted small">Namoz vaqtlari tekshirilmoqda…</p>}
     {!state.prayerConfig&&<div className="prayer-enable"><span className="muted small">Avtomatik qazo nazorati yoqilgan paytdan boshlab ishlaydi.</span><button type="button" className="primary-btn" disabled={!todaySchedule} onClick={()=>mutate(s=>({...s,prayerConfig:{city:activeCity,enabledAt:new Date().toISOString()}}))}>Avtomatik nazoratni yoqish</button></div>}
-    <div className="prayer-long-list">{rows.map(({pr,status,timeExpired,mayClaimOnTime,statusClass,countLabel,timeLabel})=><article className={`prayer-long-card prayer-status-${statusClass}`} key={pr.id}>
+    <div className="prayer-long-list">{rows.map(({pr,status,timeExpired,mayClaimOnTime,isCurrent,isUpcoming,windowTime,statusClass,countLabel,timeLabel})=><article className={`prayer-long-card prayer-status-${statusClass}`} key={pr.id}>
       <div className="prayer-long-top"><h3>{pr.label}</h3><span className="prayer-long-status">{countLabel}</span></div>
       <p className="prayer-long-time" aria-live="off">{timeLabel}{(isCurrent||isUpcoming)&&windowTime&&<span> <Countdown target={isCurrent?windowTime.end:windowTime.start}/></span>}</p>
       {status==='pending'&&mayClaimOnTime&&<button type="button" className="prayer-long-button" onClick={()=>setSalawatTarget({date:selectedDate,prayer:pr.id,kind:'completed'})}>O‘qidim · +{pr.xp} XP</button>}

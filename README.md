@@ -1,3 +1,5 @@
+> **2026-11-07 optimizatsiya:** Sahifalar o‘rtasida qayta Neon so‘rovini to‘xtatish, bootstrap API, IndexedDB account-scoped cache, namoz cache va izolatsiyalangan taymer. Tafsilotlar: `README-TEZLIK-OPTIMIZATSIYA.md`.
+
 # LIFEQUEST — Email/Password login + Neon + Vercel
 
 Mobile-first RPG productivity platform. Next.js 14 App Router, TypeScript, Tailwind CSS, Framer Motion, Neon PostgreSQL.
