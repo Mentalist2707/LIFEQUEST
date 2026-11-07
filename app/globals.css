@@ -424,3 +424,104 @@ input,textarea,select{background:linear-gradient(180deg,#20364f,#1a2f46);border-
 .loading-screen,.error-screen{background:radial-gradient(circle at 35% 0%,rgba(0,229,255,.13),transparent 40%),linear-gradient(180deg,#15283e,#0e1e32)}
 .loading-screen form{background:linear-gradient(180deg,#223b54,#1a3047);border-color:#4b6984}
 @media(max-width:760px){.prayer-buttons{justify-content:flex-start}.prayer-row{padding:16px}.prayer-buttons .prayer-action{flex:1;min-width:146px}.prayer-state-hint{max-width:34ch}}
+
+/* Compact prayer dashboard — focus on next action, not an oversized timetable */
+.prayer-compact-panel,.prayer-main-card{display:grid;gap:14px}
+.prayer-compact-heading{margin:0;align-items:end}
+.prayer-compact-heading h2{margin:7px 0 0}
+.prayer-simple-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.prayer-simple-card{min-width:0;min-height:116px;display:flex;align-items:flex-start;flex-direction:column;justify-content:center;gap:8px;padding:16px;border:1px solid #304660;border-radius:17px;background:linear-gradient(145deg,#18283c,#142338);color:#b6c7da;transition:border-color .2s ease,background .2s ease}
+.prayer-simple-card strong{font-size:17px;color:#f1f7ff;letter-spacing:-.025em}
+.prayer-simple-card span{font-size:11px;color:#96abc1;line-height:1.4}
+.prayer-simple-card.active{background:linear-gradient(145deg,#174b39,#103e32);border-color:#38c780;box-shadow:0 0 0 1px #22c55e24,0 12px 28px #22c55e20}
+.prayer-simple-card.active svg,.prayer-simple-card.active strong,.prayer-simple-card.active span{color:#d4ffe7}
+.prayer-simple-card.prayer-simple-done:not(.active){border-color:#2f7258;background:linear-gradient(145deg,#16372e,#123127)}
+.prayer-countdown{display:flex;justify-content:space-between;align-items:center;gap:18px;border:1px solid #365873;border-radius:18px;padding:18px 20px;background:linear-gradient(110deg,#14364b,#162d46 65%,#1a2d45)}
+.prayer-countdown>div{display:grid;gap:5px}.prayer-countdown-kicker{color:#91b1ca;font-size:10px;letter-spacing:.13em;font-weight:800}.prayer-countdown strong{font-size:19px;color:#fff}.prayer-countdown-clock{font-size:clamp(25px,4vw,38px);font-weight:850;letter-spacing:.035em;font-variant-numeric:tabular-nums;color:#8fe7ff;white-space:nowrap}
+.prayer-main-card .section-head{margin-bottom:0}.prayer-date-select{min-width:135px;font-size:11px}.prayer-date-select input{font-size:12px;padding:8px 10px;min-height:40px}
+.prayer-main-list{display:grid;gap:9px}
+.prayer-simple-row{display:flex;justify-content:space-between;align-items:center;gap:14px;padding:13px 15px;border-radius:15px;background:linear-gradient(145deg,#15253a,#132236);border:1px solid #2b405b;min-height:67px}
+.prayer-simple-row.active{border-color:#30b974;background:linear-gradient(135deg,#174337,#173629)}
+.prayer-simple-info{display:flex;gap:11px;align-items:center;min-width:0}
+.prayer-dot{height:10px;width:10px;flex-shrink:0;background:#57728f;border-radius:50%}
+.prayer-simple-row.active .prayer-dot{background:#4ade80;box-shadow:0 0 0 4px #4ade8024,0 0 12px #22c55e99}
+.prayer-simple-info div{display:grid;gap:4px}.prayer-simple-info strong{font-size:14px;color:#f3f8ff}.prayer-simple-info small{color:#9cb3ca;font-size:11px;line-height:1.4}
+.prayer-muted-status{font-size:11px;color:#90a4b9;text-align:right}.prayer-qazo-indicator{font-size:11px;font-weight:750;color:#fca5a5}
+.prayer-collapsible{border-top:1px solid #2b4057;padding-top:10px}
+.prayer-collapsible>summary{display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer;list-style:none;color:#bdcee0;font-size:12px;font-weight:700;min-height:34px;user-select:none}
+.prayer-collapsible>summary::-webkit-details-marker{display:none}.prayer-collapsible>summary svg:last-child{transition:transform .15s ease;flex-shrink:0}.prayer-collapsible[open]>summary svg:last-child{transform:rotate(90deg)}
+.prayer-collapsible>summary>span{display:inline-flex;align-items:center;gap:9px;font-size:15px;color:#f4f8fe}
+.prayer-collapsible-content{padding:9px 0 2px;display:grid;gap:8px}.prayer-collapsible-content p{margin:0;color:#a7bad0;font-size:12px;line-height:1.7}
+.prayer-qazo-card,.prayer-details-card{padding-top:17px;padding-bottom:17px}.prayer-qazo-card .prayer-collapsible,.prayer-details-card .prayer-collapsible{border:0;padding:0}
+.prayer-qazo-details>summary{min-height:34px}.prayer-count-badge{display:inline-grid;place-items:center;min-width:23px;height:23px;padding:0 6px;border-radius:99px;color:#ffd8d8;background:#843139;font-size:11px}
+.prayer-qazo-content{margin-top:14px;border-top:1px solid #2b4057;padding-top:14px;display:grid;gap:10px}
+.prayer-qazo-row{min-height:68px;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 14px;background:linear-gradient(145deg,#302332,#291f2b);border:1px solid #6b3946;border-radius:14px}
+.prayer-qazo-row>div{display:grid;gap:5px}.prayer-qazo-row strong{font-size:14px}.prayer-qazo-row small{color:#c8acb5;font-size:11px;line-height:1.4}
+.prayer-details-content{display:grid;gap:14px;margin-top:14px;padding-top:14px;border-top:1px solid #2b4057}
+.prayer-details-content .stat-grid{margin-bottom:5px}
+@media(max-width:1000px){.prayer-simple-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:600px){.prayer-simple-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.prayer-simple-card{min-height:100px;padding:13px}.prayer-simple-grid>.prayer-simple-card:last-child{grid-column:span 2;min-height:74px}.prayer-countdown{padding:15px}.prayer-countdown-clock{font-size:25px}.prayer-main-card .section-head{flex-wrap:wrap}.prayer-date-select{width:100%}.prayer-date-select input{width:100%}}
+@media(max-width:390px){.prayer-simple-row{flex-wrap:wrap}.prayer-simple-row>.prayer-action{width:100%}.prayer-countdown{align-items:flex-start;flex-direction:column;gap:9px}.prayer-countdown-clock{font-size:31px}.prayer-qazo-row{flex-wrap:wrap}.prayer-qazo-row>.prayer-action{width:100%}}
+
+/* v1.6 — vertical, status-led namoz journal */
+.prayer-vertical-section{display:grid;gap:16px}
+.prayer-vertical-section .prayer-compact-heading{align-items:center}
+.prayer-vertical-section .prayer-date-select{max-width:230px}
+.prayer-long-list{display:grid;gap:12px}
+.prayer-long-card{
+  --prayer-accent:#7e9ab6;
+  --prayer-border:rgba(118,149,180,.30);
+  --prayer-fill:linear-gradient(135deg,#203650,#1a2f49);
+  display:flex;flex-direction:column;align-items:stretch;gap:11px;
+  width:100%;min-width:0;padding:19px 20px;
+  border-radius:19px;border:1px solid var(--prayer-border);
+  background:var(--prayer-fill);box-shadow:0 10px 25px rgba(3,12,26,.12);
+  transition:background .2s ease,border-color .2s ease;
+}
+.prayer-status-current{
+  --prayer-accent:#fde68a;
+  --prayer-border:rgba(251,191,36,.75);
+  --prayer-fill:linear-gradient(120deg,#665021,#3e361f 65%,#313528);
+  box-shadow:0 0 0 1px rgba(251,191,36,.1), 0 12px 26px rgba(251,191,36,.09);
+}
+.prayer-status-performed{
+  --prayer-accent:#86efac;
+  --prayer-border:rgba(74,222,128,.7);
+  --prayer-fill:linear-gradient(120deg,#1c5c44,#164537 67%,#1b3e38);
+}
+.prayer-status-missed{
+  --prayer-accent:#fecaca;
+  --prayer-border:rgba(248,113,113,.65);
+  --prayer-fill:linear-gradient(120deg,#60303e,#452b38 68%,#352837);
+}
+.prayer-status-madeup{
+  --prayer-accent:#c4b5fd;
+  --prayer-border:rgba(167,139,250,.72);
+  --prayer-fill:linear-gradient(120deg,#3e3d70,#30375b 70%,#2d3655);
+}
+.prayer-long-top{display:flex;justify-content:space-between;align-items:baseline;gap:14px}
+.prayer-long-top h3{font-size:clamp(18px,2.5vw,22px);font-weight:800;letter-spacing:-.035em;margin:0;color:#fff}
+.prayer-long-status{font-size:11px;font-weight:800;letter-spacing:.02em;color:var(--prayer-accent);text-align:right}
+.prayer-long-time{font-size:15px;font-weight:750;letter-spacing:.015em;font-variant-numeric:tabular-nums;color:#e1ebf7;margin:0}
+.prayer-long-button{display:flex;align-items:center;justify-content:center;min-height:49px;width:100%;border:1px solid rgba(255,255,255,.23);border-radius:13px;background:rgba(255,255,255,.13);color:#fff;font-size:14px;font-weight:800;transition:background .18s ease,transform .18s ease,border-color .18s ease}
+.prayer-long-button:hover{background:rgba(255,255,255,.21);border-color:rgba(255,255,255,.4);transform:translateY(-1px)}
+.prayer-status-current .prayer-long-button{background:linear-gradient(180deg,#ffe7a2,#f5cd6b);color:#28200c;border-color:#ffedb0;box-shadow:0 10px 25px rgba(251,191,36,.15)}
+.prayer-status-current .prayer-long-button:hover{background:#ffe6a4}
+.prayer-madeup-button{background:rgba(196,181,253,.2);border-color:rgba(196,181,253,.42)}
+.prayer-long-hint{font-size:12px;color:#c1cede;line-height:1.45}
+.prayer-status-performed .prayer-long-hint{color:#aff4c9}
+.prayer-status-missed .prayer-long-hint{color:#ffd0d5}
+.prayer-status-madeup .prayer-long-hint{color:#dbd4ff}
+
+.salawat-modal{width:min(520px,100%);max-height:90dvh;overflow:auto;padding:24px;display:grid;gap:17px;box-shadow:0 24px 90px rgba(0,0,0,.48);background:linear-gradient(145deg,#213a56,#172b44)}
+.salawat-modal-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.salawat-modal-head h2{font-size:21px;line-height:1.35;margin:8px 0 0}
+.salawat-modal .eyebrow{color:#9deff7}
+.salawat-arabic{font-family:"Noto Naskh Arabic","Traditional Arabic",serif;text-align:center;font-size:clamp(26px,4vw,34px);line-height:2;letter-spacing:0;background:rgba(6,19,35,.38);padding:20px 16px;border:1px solid #41617b;border-radius:16px;color:#fff;margin:0}
+.salawat-latin{text-align:center;font-weight:750;line-height:1.7;color:#f0f8ff;margin:0;font-size:15px}
+.salawat-meaning{text-align:center;color:#bed0e2;font-size:13px;line-height:1.65;margin:0}
+.salawat-notice{font-size:12px;color:#98b3ce;line-height:1.6;border-top:1px solid #3a526c;padding-top:12px;margin:0}
+.salawat-modal-actions{display:flex;gap:10px}
+.salawat-modal-actions button{flex:1}
+@media(max-width:760px){.prayer-vertical-section .prayer-compact-heading{align-items:flex-start;flex-wrap:wrap}.prayer-long-card{padding:17px 15px;gap:10px}.prayer-long-top h3{font-size:19px}.prayer-long-time{font-size:14px}.salawat-modal{padding:18px;gap:15px}.salawat-modal-actions{flex-direction:column-reverse}}
+@media(max-width:390px){.prayer-long-top{flex-direction:column;align-items:flex-start;gap:5px}.prayer-long-status{text-align:left}}

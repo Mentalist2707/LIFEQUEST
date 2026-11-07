@@ -15,7 +15,7 @@ export async function PUT(req:NextRequest){
  const raw=await req.text();if(raw.length>2_000_000)return json({error:'Ma’lumot 2 MB dan oshdi.'},413);
  const payload=JSON.parse(raw);if(!Number.isSafeInteger(payload.revision)||payload.revision<0)return json({error:'Versiya raqami noto‘g‘ri.'},400);
  const state=safeState(payload.state);const data=JSON.stringify(state);const id=`user:${user.id}`;
- const rows=await sql`INSERT INTO lifequest_state (id,data,revision) SELECT ${id},${data}::jsonb,1 WHERE ${payload.revision}=0 ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data,revision=lifequest_state.revision+1,updated_at=now() WHERE lifequest_state.revision=${payload.revision} RETURNING revision`;
+ const rows=await sql`INSERT INTO lifequest_state (id,data,revision) VALUES (${id},${data}::jsonb,1) ON CONFLICT (id) DO UPDATE SET data=EXCLUDED.data,revision=lifequest_state.revision+1,updated_at=now() WHERE lifequest_state.revision=${payload.revision} RETURNING revision`;
  if(!rows.length)return json({error:'Boshqa qurilmada ma’lumot yangilangan. Sahifani qayta oching.'},409);
  return json({revision:Number(rows[0].revision)});
  }catch(e){if(e instanceof SyntaxError)return json({error:'JSON noto‘g‘ri.'},400);if(e instanceof Error&&/Zaxira|Takroriy|Tarixdagi|XP ma’lumoti/.test(e.message))return json({error:e.message},400);return serverFailure(e)}
