@@ -7,6 +7,7 @@ import {Home,CheckSquare,UserRound,Trophy,CalendarDays,Settings as SettingsIcon,
 import {State,Quest,QuestKind,Category,Difficulty,Priority,CalendarEvent,PrayerName,PrayerStatus,categories,difficultyLabels,priorityLabels,kindLabels,xpByDifficulty,titles} from '@/lib/types';
 import {uid,localDate,dayOffset,weekStart,monthStart,progress,totalXP,skillXP,completionFor,dueToday,streaks,checkAchievements,achievements,createInitial,completeQuest,claimReward,safeState,countOn,prayers,setPrayer} from '@/lib/engine';
 import {loadCloud,saveCloud,authenticate,getSession,logout,mergeStates,getLastSaved} from '@/lib/cloud';
+import {stableEqual} from '@/lib/merge';
 import {CITIES,CityKey,Schedule,uzDate,uzTimestamp,isoDayOffset,prayerWindow,currentPrayer,timeLeft,autoMarkMissed} from '@/lib/prayer-times';
 const nav=[{id:'home',label:'Bosh sahifa',Icon:Home},{id:'quests',label:'Vazifalar',Icon:CheckSquare},{id:'character',label:'Qahramon',Icon:UserRound},{id:'prayer',label:'Namoz',Icon:MoonStar},{id:'achievements',label:'Yutuqlar',Icon:Trophy},{id:'calendar',label:'Taqvim',Icon:CalendarDays}];
 const extras=[{id:'skills',label:'Ko‘nikmalar',Icon:Swords},{id:'inventory',label:'Xazina',Icon:Package},{id:'statistics',label:'Statistika',Icon:BarChart3},{id:'settings',label:'Sozlamalar',Icon:SettingsIcon}];
