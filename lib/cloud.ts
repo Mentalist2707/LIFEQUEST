@@ -49,20 +49,41 @@ export async function authenticate(mode:'login'|'register',email:string,password
 export async function getSession(){return request('/api/auth/me','GET') as Promise<{user:{id:string;name:string;email:string}}>}
 export async function logout(){await queue.catch(()=>{});await request('/api/auth/logout','POST');revision=0;lastSaved=null;lastEnqueued=null;queue=Promise.resolve();}
 export async function loadCloud():Promise<State>{await queue.catch(()=>{});const result=await request('/api/state','GET');revision=result.revision;const state=safeState(result.state);lastSaved=clone(state);lastEnqueued=clone(state);return state;}
-export function saveCloud(state:State):Promise<State>{const snapshot=clone(safeState(state));
- const baseline=lastEnqueued?clone(lastEnqueued):lastSaved?clone(lastSaved):clone(snapshot);lastEnqueued=clone(snapshot);
- const perform=async()=>{
+/** Serialized, idempotent state persistence. Each request waits for the prior write.
+ * The server remains the authority for revisions. A state that has already been
+ * acknowledged is never written again merely because React re-rendered. */
+export function saveCloud(state:State):Promise<State>{
+ const snapshot=clone(safeState(state));
+ const baseline=lastEnqueued?clone(lastEnqueued):lastSaved?clone(lastSaved):clone(snapshot);
+ lastEnqueued=clone(snapshot);
+ const perform=async():Promise<State>=>{
+  // Other queued saves may have already persisted exactly this snapshot.
+  // Avoid creating fresh revisions from no-op React rerenders.
   let desired=lastSaved?mergeStates(baseline,snapshot,lastSaved):snapshot;
-  for(let attempt=0;attempt<5;attempt++){
-   try{const result=await request('/api/state','PUT',{state:desired,revision});revision=result.revision;lastSaved=clone(desired);return desired;}
-   catch(e){if((e as ApiError).status!==409||attempt===4)throw e;
-    const current=await request('/api/state','GET');const fresh=safeState(current.state);
-    desired=mergeStates(lastSaved||fresh,desired,fresh);
-    revision=current.revision; // Retry with latest server revision, without losing locally edited records.
+  if(lastSaved&&eq(desired,lastSaved))return clone(lastSaved);
+  for(let attempt=0;attempt<4;attempt++){
+   try{
+    const result=await request('/api/state','PUT',{state:desired,revision});
+    revision=Number(result.revision);
+    lastSaved=clone(desired);
+    return clone(desired);
+   }catch(e){
+    if((e as ApiError).status!==409)throw e;
+    if(attempt===3)throw new Error('Ma’lumotni saqlashda versiya konflikti. Qayta saqlash tugmasini bosing.');
+    const current=await request('/api/state','GET');
+    const fresh=safeState(current.state);
+    const previous=lastSaved?clone(lastSaved):clone(fresh);
+    revision=Number(current.revision);
+    desired=mergeStates(previous,desired,fresh);
+    // A concurrent request has already persisted the intended outcome.
+    if(eq(desired,fresh)){lastSaved=clone(fresh);return clone(fresh)}
+    lastSaved=clone(fresh);
    }
   }
-  throw new Error('Saqlashdagi to‘qnashuvni hal qilib bo‘lmadi.');
+  throw new Error('Saqlash amalga oshmadi.');
  };
- const operation=queue.catch(()=>{}).then(perform);queue=operation;return operation;
+ const operation=queue.catch(()=>{}).then(perform);
+ queue=operation;
+ return operation;
 }
 export const getLastSaved=()=>lastSaved;

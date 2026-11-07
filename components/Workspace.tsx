@@ -6,7 +6,7 @@ import {motion,AnimatePresence} from 'framer-motion';
 import {Home,CheckSquare,UserRound,Trophy,CalendarDays,Settings as SettingsIcon,Plus,Search,Gift,Flame,Star,BookOpen,Heart,Wallet,Briefcase,Users,Sparkles,Trash2,Edit3,Check,Clock,ChevronLeft,ChevronRight,Download,Upload,BarChart3,Swords,Package,ArrowUpCircle,Bell, X,ShieldCheck,Target,CalendarPlus,Volume2,Medal,Save,MoonStar,RotateCcw,CloudUpload} from 'lucide-react';
 import {State,Quest,QuestKind,Category,Difficulty,Priority,CalendarEvent,PrayerName,PrayerStatus,categories,difficultyLabels,priorityLabels,kindLabels,xpByDifficulty,titles} from '@/lib/types';
 import {uid,localDate,dayOffset,weekStart,monthStart,progress,totalXP,skillXP,completionFor,dueToday,streaks,checkAchievements,achievements,createInitial,completeQuest,claimReward,safeState,countOn,prayers,setPrayer} from '@/lib/engine';
-import {loadCloud,saveCloud,authenticate,getSession,logout,mergeStates} from '@/lib/cloud';
+import {loadCloud,saveCloud,authenticate,getSession,logout,mergeStates,getLastSaved} from '@/lib/cloud';
 import {CITIES,CityKey,Schedule,uzDate,uzTimestamp,isoDayOffset,prayerWindow,currentPrayer,timeLeft,autoMarkMissed} from '@/lib/prayer-times';
 const nav=[{id:'home',label:'Bosh sahifa',Icon:Home},{id:'quests',label:'Vazifalar',Icon:CheckSquare},{id:'character',label:'Qahramon',Icon:UserRound},{id:'prayer',label:'Namoz',Icon:MoonStar},{id:'achievements',label:'Yutuqlar',Icon:Trophy},{id:'calendar',label:'Taqvim',Icon:CalendarDays}];
 const extras=[{id:'skills',label:'Ko‘nikmalar',Icon:Swords},{id:'inventory',label:'Xazina',Icon:Package},{id:'statistics',label:'Statistika',Icon:BarChart3},{id:'settings',label:'Sozlamalar',Icon:SettingsIcon}];
@@ -44,6 +44,12 @@ export default function Workspace({section}:{section:string}){
  useEffect(()=>{if(!ready||!authenticated)return;
   if(skipInitialSave.current){skipInitialSave.current=false;return;}
   const snapshot=state;
+  // Server acknowledgements and cloud merges are not fresh user edits.
+  // Without this guard, unchanged snapshots can create a PUT/409 feedback loop.
+  const persisted=getLastSaved();
+  if(persisted&&JSON.stringify(persisted)===JSON.stringify(snapshot)){
+   setSaveStatus('saved');setSaveError('');return;
+  }
   pendingState.current=snapshot;setSaveStatus('saving');setSaveError('');
   saveCloud(snapshot).then(saved=>{
    // Merge remote changes into the live UI, preserving edits made while request was in flight.
