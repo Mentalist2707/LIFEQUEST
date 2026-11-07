@@ -1,4 +1,4 @@
-import { Category, Completion, Quest, State, Transaction, PrayerName, PrayerStatus, xpByDifficulty } from './types';
+import { Category, Completion, Quest, State, Transaction, PrayerName, PrayerStatus, PrayerHistory, xpByDifficulty } from './types';
 export const uid=()=>typeof crypto!=='undefined'&&crypto.randomUUID?crypto.randomUUID():`${Date.now()}-${Math.random().toString(36).slice(2)}`;
 export const localDate=(d=new Date())=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 export const dayOffset=(date:string,n:number)=>{const [y,m,d]=date.split('-').map(Number);return localDate(new Date(y,m-1,d+n));};
@@ -49,7 +49,7 @@ export function setPrayer(s:State,date:string,prayer:PrayerName,to:'pending'|Pra
  // the actual negative balance when an old qazo is made up.
  const delta=to==='madeup'?Math.floor(Math.abs(Math.min(0,previousNet))/2):prayerScore(prayer,to)-previousNet;
  // Stable id for first-time missed prayer: two devices cannot debit XP twice for the same auto-qazo.
- const event={id:from==='pending'&&to==='qazo'?`missed:${date}:${prayer}`:uid(),date,prayer,from,to,delta,at:new Date().toISOString()};
+ const event:PrayerHistory={id:from==='pending'&&to==='qazo'?`missed:${date}:${prayer}`:uid(),date,prayer,from,to,delta,at:new Date().toISOString()};
  const records=(s.prayers||[]).filter(p=>!(p.date===date&&p.prayer===prayer));
  if(to!=='pending')records.push({id:current?.id||uid(),date,prayer,status:to,updated:event.at});
  const next={...s,prayers:records,prayerHistory:[...(s.prayerHistory||[]),event]};
