@@ -525,3 +525,10 @@ input,textarea,select{background:linear-gradient(180deg,#20364f,#1a2f46);border-
 .salawat-modal-actions button{flex:1}
 @media(max-width:760px){.prayer-vertical-section .prayer-compact-heading{align-items:flex-start;flex-wrap:wrap}.prayer-long-card{padding:17px 15px;gap:10px}.prayer-long-top h3{font-size:19px}.prayer-long-time{font-size:14px}.salawat-modal{padding:18px;gap:15px}.salawat-modal-actions{flex-direction:column-reverse}}
 @media(max-width:390px){.prayer-long-top{flex-direction:column;align-items:flex-start;gap:5px}.prayer-long-status{text-align:left}}
+
+/* Kunlik vazifa XP jarimasi — ixtiyoriy */
+.quest-penalty-setting{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px;border:1px solid rgba(239,68,68,.3);border-radius:16px;background:rgba(239,68,68,.065);cursor:pointer}
+.quest-penalty-setting>span{display:grid;gap:6px}.quest-penalty-setting strong{color:#ffd0d0;font-size:13px}.quest-penalty-setting small{font-weight:450;font-size:12px;line-height:1.5;color:#c4a9ae}
+.quest-penalty-tag{font-size:10px;color:#fca5a5;background:rgba(239,68,68,.1);border:1px solid rgba(239,68,68,.2);padding:5px 8px;border-radius:999px;white-space:nowrap}
+
+.level-pill.xp-negative{color:#fecaca;background:rgba(239,68,68,.12);border-color:rgba(239,68,68,.4)}

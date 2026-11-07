@@ -7,9 +7,9 @@ export const monthStart=(date:string)=>date.slice(0,7)+'-01';
 // Level thresholds: level 1=0, level 2=100, level 3=250, level 4=450, level 5=700.
 export const threshold=(level:number)=>Math.max(0,25*(level-1)*(level+2));
 export const levelFromXP=(xp:number)=>{let lvl=1;while(threshold(lvl+1)<=xp&&lvl<10000)lvl++;return lvl;};
-export const progress=(xp:number)=>{const level=levelFromXP(xp),start=threshold(level),next=threshold(level+1);return {level,current:xp-start,need:next-start,remaining:next-xp,percent:Math.min(100,((xp-start)/(next-start))*100)};};
-export const totalXP=(s:State)=>Math.max(0,s.transactions.reduce((n,t)=>n+t.amount,0));
-export const skillXP=(s:State,category:Category)=>Math.max(0,s.transactions.filter(t=>t.category===category).reduce((n,t)=>n+t.amount,0));
+export const progress=(xp:number)=>{const level=levelFromXP(xp),start=threshold(level),next=threshold(level+1);return {level,current:xp-start,need:next-start,remaining:next-xp,percent:Math.max(0,Math.min(100,((xp-start)/(next-start))*100))};};
+export const totalXP=(s:State)=>s.transactions.reduce((n,t)=>n+t.amount,0);
+export const skillXP=(s:State,category:Category)=>s.transactions.filter(t=>t.category===category).reduce((n,t)=>n+t.amount,0);
 export const completionFor=(s:State,q:Quest,date=localDate())=>s.completions.some(c=>c.questId===q.id&&(q.repeat?c.date===date:true));
 export const dueToday=(q:Quest,date=localDate())=>!q.archived&&((q.repeat&&(!q.due||q.due<=date))||q.due===date||(!q.due&&q.kind==='daily'));
 export const activeDays=(s:State)=>new Set([...s.completions.map(c=>c.date),...s.rewards.map(r=>r.date),...(s.prayers||[]).filter(p=>p.status==='completed').map(p=>p.date)]);
@@ -101,11 +101,40 @@ export const checkAchievements=(s:State,today=localDate())=>{
  level>=5,level>=10,level>=25,level>=50,prayersDone.length>=1,prayersDone.length>=20,fullDays.size>=1,consecutive,s.rewards.length>=7,s.rewards.length>=30];
 };
 export function grant(s:State,amount:number,reason:string,sourceId:string,category?:Category):State{if(s.transactions.some(t=>t.sourceId===sourceId))return s;const t:Transaction={id:uid(),date:localDate(),at:new Date().toISOString(),amount,reason,sourceId,category};return {...s,transactions:[...s.transactions,t]};}
-export function completeQuest(s:State,id:string,date=localDate()):State{const q=s.quests.find(q=>q.id===id);if(!q||q.archived||date!==localDate()||completionFor(s,q,date))return s;const completion:Completion={id:`${id}:${q.repeat?date:'once'}`,questId:id,date,at:new Date().toISOString(),xp:q.xp,category:q.category,difficulty:q.difficulty,title:q.title};let next={...s,completions:[...s.completions,completion]};next=grant(next,q.xp,`Vazifa: ${q.title}`,`completion:${completion.id}`,q.category);const todayQuests=next.quests.filter(q=>dueToday(q,date));if(date===localDate()&&todayQuests.length>0&&todayQuests.every(q=>completionFor(next,q,date)))next=grant(next,30,'Kunlik barcha vazifalar mukofoti',`daily-bonus:${date}`);return next;}
+export function completeQuest(s:State,id:string,date=localDate()):State{const q=s.quests.find(q=>q.id===id);if(!q||q.archived||date!==localDate()||completionFor(s,q,date)||(q.kind==='daily'&&q.missPenalty&&!q.repeat&&q.due&&q.due<date))return s;const completion:Completion={id:`${id}:${q.repeat?date:'once'}`,questId:id,date,at:new Date().toISOString(),xp:q.xp,category:q.category,difficulty:q.difficulty,title:q.title};let next={...s,completions:[...s.completions,completion]};next=grant(next,q.xp,`Vazifa: ${q.title}`,`completion:${completion.id}`,q.category);const todayQuests=next.quests.filter(q=>dueToday(q,date));if(date===localDate()&&todayQuests.length>0&&todayQuests.every(q=>completionFor(next,q,date)))next=grant(next,30,'Kunlik barcha vazifalar mukofoti',`daily-bonus:${date}`);return next;}
+/**
+ * Past-day optional quest penalties. Deterministic sourceId makes cloud merges
+ * idempotent even if two logged-in devices catch up on the same date.
+ * The penalty is final: completing a later day never refunds a missed date.
+ * The caller must use the user's LOCAL calendar date as `today`.
+ */
+export function assessMissedDailyQuests(s:State,today=localDate()):State{
+ if(!/^\d{4}-\d{2}-\d{2}$/.test(today))return s;
+ let next=s;
+ const existing=new Set(s.transactions.map(t=>t.sourceId));
+ const done=new Set(s.completions.map(c=>`${c.questId}:${c.date}`));
+ for(const q of s.quests){
+  if(q.kind!=='daily'||!q.missPenalty||q.archived||!Number.isFinite(q.xp)||q.xp<=0)continue;
+  // A newly created / opted-in task cannot charge dates before the user opted in.
+  const createdDay=Number.isFinite(Date.parse(q.created))?localDate(new Date(q.created)):today;
+  const first=[q.due||createdDay,createdDay,q.penaltyFrom||createdDay].sort().at(-1)!;
+  if(first>=today)continue;
+  const last=q.repeat?dayOffset(today,-1):first;
+  // Iterate by calendar date, never by raw UTC milliseconds (DST safe).
+  for(let date=first,count=0;date<=last&&count<36600;date=dayOffset(date,1),count++){
+   const sourceId=`daily-missed:${q.id}:${date}`;
+   if(done.has(`${q.id}:${date}`)||existing.has(sourceId))continue;
+   next=grant(next,-q.xp,`Bajarilmagan kunlik vazifa: ${q.title} (${date})`,sourceId,q.category);
+   existing.add(sourceId);
+  }
+ }
+ return next;
+}
 export function claimReward(s:State,date=localDate()):State{if(date!==localDate()||s.rewards.some(r=>r.date===date))return s;let next={...s,rewards:[...s.rewards,{date,xp:15,at:new Date().toISOString()}]};return grant(next,15,'Kunlik sovg‘a',`reward:${date}`);}
 export function safeState(value:unknown):State{if(!value||typeof value!=='object')throw new Error('Zaxira fayli noto‘g‘ri');const v=value as Partial<State>;if(v.version!==1||!v.profile||!v.settings||!Array.isArray(v.quests)||!Array.isArray(v.completions)||!Array.isArray(v.transactions)||!Array.isArray(v.rewards)||!Array.isArray(v.events)||!Array.isArray(v.notifications))throw new Error('Zaxira formati mos emas');const unique=(arr:{id?:string;sourceId?:string;date?:string}[],key:'id'|'sourceId'|'date')=>{const keys=arr.map(v=>v[key]);return keys.every(k=>typeof k==='string'&&k.length>0)&&new Set(keys).size===keys.length};if(!unique(v.quests,'id')||!unique(v.completions,'id')||!unique(v.transactions,'id')||!unique(v.transactions,'sourceId')||!unique(v.rewards,'date'))throw new Error('Takroriy yozuv topildi');
  const completionKeys=v.completions.map(c=>`${c.questId}:${c.date}`);if(new Set(completionKeys).size!==completionKeys.length)throw new Error('Bajarilish tarixida takroriy yozuv bor');
  if(v.completions.some(c=>!c.questId||!c.date||!Number.isFinite(c.xp)||c.xp<0)||v.rewards.some(r=>!Number.isFinite(r.xp)||r.xp<0))throw new Error('Tarixdagi ma’lumotlar buzilgan');if(v.transactions.some(t=>!Number.isFinite(t.amount)))throw new Error('XP ma’lumoti buzilgan');
+ if(v.quests.some(q=>q.missPenalty!==undefined&&typeof q.missPenalty!=='boolean'||q.penaltyFrom!==undefined&&!/^\d{4}-\d{2}-\d{2}$/.test(q.penaltyFrom)||(q.missPenalty&&(!Number.isFinite(q.xp)||q.xp<0))))throw new Error('Vazifa jarimasi ma’lumotlari noto‘g‘ri');
  const state=v as State;state.prayerConfig=v.prayerConfig&&typeof v.prayerConfig==='object'&&typeof (v.prayerConfig as any).city==='string'&&typeof (v.prayerConfig as any).enabledAt==='string'?v.prayerConfig as State['prayerConfig']:undefined;state.prayers=Array.isArray(v.prayers)?v.prayers:[];state.prayerHistory=Array.isArray(v.prayerHistory)?v.prayerHistory:[];
  if(!unique(state.prayers,'id')||!unique(state.prayerHistory,'id'))throw new Error('Takroriy namoz yozuvi');
  if(new Set(state.prayers.map(p=>`${p.date}:${p.prayer}`)).size!==state.prayers.length)throw new Error('Takroriy namoz holati');
